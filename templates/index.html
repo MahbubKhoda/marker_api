@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Market Data</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            padding: 20px;
+        }
+        .box {
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin: 10px;
+            width: 350px;
+            background-color: white;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            border-radius: 5px;
+        }
+        .box.loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+        .box h2 {
+            margin-bottom: 10px;
+            color: #555;
+        }
+        .box button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .box button:hover {
+            background-color: #0056b3;
+        }
+        .loading-message {
+            text-align: center;
+            margin-top: 10px;
+            color: #777;
+        }
+        .results {
+            margin-top: 10px;
+            overflow-x: auto;
+        }
+        .results pre {
+            white-space: pre-wrap;
+            font-size: 14px;
+        }
+        .error {
+            color: red;
+        }
+        .search-form {
+            margin-bottom: 10px;
+        }
+        .search-form input[type="text"], .search-form select {
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            margin-right: 5px; /* Add some spacing between form elements */
+        }
+
+    </style>
+</head>
+<body>
+    <h1>Market Data</h1>
+    <div class="container">
+        {% for endpoint_name, endpoint_data in endpoints.items() %}
+        <div class="box" id="{{ endpoint_name }}-box">
+            <h2>{{ endpoint_name }}</h2>
+
+            <form class="search-form" id="{{ endpoint_name }}-form">
+                {% if endpoint_data.needs_term %}
+                    <input type="text" name="{{ endpoint_name }}" placeholder="Search term">
+                {% endif %}
+
+                {% if endpoint_name == "Trademark Search" or endpoint_name == "Description Search" %}
+                    <select name="status">
+                        <option value="all">All</option>
+                        <option value="active">Active</option>
+                    </select>
+                {% endif %}
+
+                {% if endpoint_name == "Expiration Search" %}
+                    <select name="expiring">
+                        <option value="6 months">6 Months</option>
+                        <option value="1 year">1 Year</option>
+                        <option value="90 days">90 Days</option>
+                    </select>
+                {% endif %}
+
+            </form>
+
+            <button onclick="fetchData('{{ endpoint_name }}')">Fetch {{ endpoint_name }}</button>
+            <div id="{{ endpoint_name }}-results" class="results"></div>
+            <div id="{{ endpoint_name }}-loading" class="loading-message" style="display:none;">Fetching results...</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        async function fetchData(endpointName) {
+            const box = document.getElementById(`${endpointName}-box`);
+            const resultsDiv = document.getElementById(`${endpointName}-results`);
+            const loadingDiv = document.getElementById(`${endpointName}-loading`);
+            const form = document.getElementById(`${endpointName}-form`);
+            const formData = new FormData(form);  // Get form data
+
+            box.classList.add("loading");
+            loadingDiv.style.display = "block";
+            resultsDiv.innerHTML = "";
+
+            try {
+                const response = await fetch('/fetch_api_data', {
+                    method: 'POST',
+                    body: formData // Send form data in the request body
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+
+                if (data.error) {
+                    resultsDiv.innerHTML = `<p class="error">${data.error}</p>`;
+                } else {
+                    displayResults(endpointName, data);
+                }
+
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                resultsDiv.innerHTML = "<p class='error'>Error fetching data. Please try again later.</p>";
+            } finally {
+                box.classList.remove("loading");
+                loadingDiv.style.display = "none";
+            }
+        }
+
+        function displayResults(endpointName, data) {
+            const resultsDiv = document.getElementById(`${endpointName}-results`);
+            const endpointData = data[endpointName];
+
+            if (endpointData) {
+                if (endpointData.error) {
+                    resultsDiv.innerHTML = `<p class="error">${endpointData.error}</p>`;
+                } else {
+                    resultsDiv.innerHTML = "<pre>" + JSON.stringify(endpointData, null, 2) + "</pre>";
+                }
+            } else {
+                resultsDiv.innerHTML = "<p>No data available or incorrect data format.</p>";
+            }
+        }
+    </script>
+</body>
+</html>
